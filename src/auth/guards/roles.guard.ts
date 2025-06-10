@@ -1,4 +1,4 @@
-import { Injectable, CanActivate, ExecutionContext } from '@nestjs/common';
+import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { UserType } from '../types/auth.types';
 
@@ -12,18 +12,27 @@ export class RolesGuard implements CanActivate {
       context.getClass(),
     ]);
 
-    if (!requiredRoles) {
+    if (!requiredRoles?.length) {
       return true;
     }
 
     const request = context
       .switchToHttp()
-      .getRequest<{ user: { profiles?: { profileType: UserType; isActive: boolean }[] } }>();
+      .getRequest<{ user?: { profiles?: { profile_type: UserType; is_active: boolean }[] } }>();
     const { user } = request;
 
-    // Check if user has any of the required roles
-    return requiredRoles.some((role) =>
-      user.profiles?.some((profile) => profile.profileType === role && profile.isActive),
+    if (!user?.profiles?.length) {
+      throw new ForbiddenException('No user profiles found');
+    }
+
+    const hasRequiredRole = requiredRoles.some((role) =>
+      user.profiles?.some((profile) => profile.profile_type === role && profile.is_active),
     );
+
+    if (!hasRequiredRole) {
+      throw new ForbiddenException(`Required roles: ${requiredRoles.join(', ')}`);
+    }
+
+    return true;
   }
 }
